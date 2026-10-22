@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TuazarData - DePIN M2M Protocol v2</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            solana: { green: '#14F195', purple: '#9945FF', dark: '#0e0b16', card: '#161224', border: '#2a2045' }
+          },
+          fontFamily: { mono: ['Fira Code', 'monospace'], sans: ['Inter', 'sans-serif'] },
+          boxShadow: { 'solana-glow': '0 0 20px rgba(20,241,149,0.25)' }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+
+  <!-- Solana Web3.js (global: solanaWeb3) -->
+  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
+
+  <style>
+    body { background:#08060f; color:#e2e8f0; font-family:'Inter',sans-serif; overflow-x:hidden; }
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:#0e0b16; }
+    ::-webkit-scrollbar-thumb { background:#2a2045; border-radius:4px; }
+    ::-webkit-scrollbar-thumb:hover { background:#14F195; }
+    .scanline { background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(20,241,149,.03) 50%,rgba(20,241,149,.03)); background-size:100% 4px; }
+    .text-gradient { background:linear-gradient(135deg,#14F195,#9945FF); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .toast { animation: slidein .25s ease-out; }
+    @keyframes slidein { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:none;} }
+    .btn-disabled { opacity:.5; pointer-events:none; }
+    .step-dot { transition: all .3s; }
+    .step-active { background:#14F195; box-shadow:0 0 10px #14F195; }
+    .step-done { background:#9945FF; }
+  </style>
+</head>
+<body class="scanline min-h-screen flex flex-col selection:bg-solana-green selection:text-black">
+
+<!-- HEADER -->
+<header class="border-b border-solana-border bg-solana-dark/90 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 py-3">
+  <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-3">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-solana-green to-solana-purple p-[2px] shadow-solana-glow">
+        <div class="w-full h-full bg-solana-dark rounded-[10px] flex items-center justify-center font-black text-solana-green text-xl">T</div>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="font-black text-xl tracking-wider text-white">TUAZAR<span class="text-solana-green">DATA</span></span>
+          <span class="text-[10px] bg-solana-purple/30 border border-solana-purple text-purple-300 font-mono px-2 py-0.5 rounded-full">DePIN M2M</span>
+        </div>
+        <p class="text-xs text-gray-400 font-mono">x402 Micropayments & AI Mesh</p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
+      <!-- Network selector -->
+      <select id="network-select" class="bg-solana-card border border-solana-border rounded-lg px-2 py-2 text-gray-200 focus:outline-none focus:border-solana-green">
+        <option value="devnet">Devnet (pruebas)</option>
+        <option value="mainnet-beta">Mainnet-Beta (SOL real)</option>
+      </select>
+      <!-- Mode toggle -->
+      <div class="flex bg-solana-card border border-solana-border rounded-lg overflow-hidden">
+        <button id="mode-sim" class="px-3 py-2 transition">Simulación</button>
+        <button id="mode-real" class="px-3 py-2 transition">Pagos reales</button>
+      </div>
+      <!-- Wallet -->
+      <button id="wallet-btn" class="bg-gradient-to-r from-solana-green to-solana-purple text-black font-bold px-3 py-2 rounded-lg flex items-center space-x-2 hover:opacity-90 transition">
+        <i class="fa-solid fa-wallet"></i><span id="wallet-btn-label">Conectar Solflare</span>
+      </button>
+      <button id="open-settings-btn" class="bg-solana-card hover:bg-solana-border border border-solana-border p-2.5 rounded-lg" title="Gemini API Key">
+        <i class="fa-solid fa-key text-solana-green"></i>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="max-w-7xl mx-auto px-4 lg:px-8 py-6 flex-grow w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+  <!-- LEFT -->
+  <section class="lg:col-span-7 flex flex-col space-y-6">
+
+    <!-- HERO + STATS -->
+    <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-solana-card via-solana-dark to-solana-card border border-solana-border p-6">
+      <div class="absolute -right-10 -top-10 w-40 h-40 bg-solana-purple/20 rounded-full blur-3xl"></div>
+      <div class="absolute -left-10 -bottom-10 w-40 h-40 bg-solana-green/20 rounded-full blur-3xl"></div>
+      <div class="relative z-10">
+        <div class="text-xs font-mono text-solana-green mb-2"><i class="fa-solid fa-bolt"></i> AUTONOMOUS MACHINE ECONOMY</div>
+        <h1 class="text-2xl md:text-3xl font-black text-white mb-2 leading-tight">
+          Red DePIN Machine-to-Machine con <span class="text-gradient">x402 & Gemini AI</span>
+        </h1>
+        <p class="text-sm text-gray-300 mb-5 max-w-xl">Compra datos IoT, cómputo y datasets con micro-pagos reales en Solana, verificados on-chain antes de entregar el recurso.</p>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
+          <div class="bg-black/40 border border-solana-border rounded-lg p-3">
+            <div class="text-gray-500">Red</div>
+            <div id="stat-network" class="text-solana-green font-bold">devnet</div>
+          </div>
+          <div class="bg-black/40 border border-solana-border rounded-lg p-3">
+            <div class="text-gray-500">Saldo</div>
+            <div id="stat-balance" class="text-white font-bold">—</div>
+          </div>
+          <div class="bg-black/40 border border-solana-border rounded-lg p-3">
+            <div class="text-gray-500">Pagos</div>
+            <div id="stat-count" class="text-white font-bold">0</div>
+          </div>
+          <div class="bg-black/40 border border-solana-border rounded-lg p-3">
+            <div class="text-gray-500">Total gastado</div>
+            <div id="stat-total" class="text-solana-purple font-bold">0 SOL</div>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-2 text-xs font-mono">
+          <span class="text-gray-400">Wallet destino:</span>
+          <button id="wallet-display" class="text-solana-green hover:underline break-all text-left" title="Copiar"></button>
+          <i class="fa-regular fa-copy text-gray-500"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- MARKETPLACE -->
+    <div>
+      <div class="flex justify-between items-center mb-4 flex-wrap gap-1">
+        <h2 class="text-lg font-bold text-white flex items-center space-x-2"><i class="fa-solid fa-store text-solana-green"></i><span>Marketplace DePIN</span></h2>
+        <span id="mode-hint" class="text-xs text-gray-400 font-mono"></span>
+      </div>
+      <div id="marketplace" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- X402 STEPPER -->
+    <div class="bg-solana-card border border-solana-border rounded-xl p-4">
+      <h3 class="text-sm font-bold text-white mb-3 flex items-center space-x-2"><i class="fa-solid fa-route text-solana-purple"></i><span>Flujo x402</span></h3>
+      <div id="stepper" class="flex items-center justify-between text-[11px] font-mono text-gray-400">
+        <div class="flex flex-col items-center flex-1"><span class="step-dot w-3 h-3 rounded-full bg-solana-border mb-1"></span>Solicitud</div>
+        <div class="flex flex-col items-center flex-1"><span class="step-dot w-3 h-3 rounded-full bg-solana-border mb-1"></span>402 Payment Required</div>
+        <div class="flex flex-col items-center flex-1"><span class="step-dot w-3 h-3 rounded-full bg-solana-border mb-1"></span>Firma y envío</div>
+        <div class="flex flex-col items-center flex-1"><span class="step-dot w-3 h-3 rounded-full bg-solana-border mb-1"></span>Verificación</div>
+        <div class="flex flex-col items-center flex-1"><span class="step-dot w-3 h-3 rounded-full bg-solana-border mb-1"></span>200 OK</div>
+      </div>
+    </div>
+
+    <!-- TERMINAL -->
+    <div class="bg-solana-card border border-solana-border rounded-xl p-4 flex flex-col min-h-[260px]">
+      <div class="flex justify-between items-center mb-3 pb-2 border-b border-solana-border">
+        <div class="flex items-center space-x-2">
+          <span class="w-3 h-3 rounded-full bg-red-500/80"></span><span class="w-3 h-3 rounded-full bg-yellow-500/80"></span><span class="w-3 h-3 rounded-full bg-green-500/80"></span>
+          <span class="text-xs font-mono text-gray-300 font-bold ml-2">x402 Handshake Terminal</span>
+        </div>
+        <button id="clear-term-btn" class="text-xs text-gray-500 hover:text-gray-300 font-mono"><i class="fa-solid fa-eraser"></i> Clear</button>
+      </div>
+      <div id="terminal-logs" class="font-mono text-xs space-y-1.5 overflow-y-auto max-h-[240px] p-2 bg-black/60 rounded-lg flex-grow border border-solana-border/50"></div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="bg-solana-card border border-solana-border rounded-xl p-4">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-sm font-bold text-white flex items-center space-x-2"><i class="fa-solid fa-receipt text-solana-green"></i><span>Historial de pagos</span></h3>
+        <div class="flex gap-3 text-xs font-mono">
+          <button id="export-history-btn" class="text-gray-400 hover:text-solana-green"><i class="fa-solid fa-download"></i> CSV</button>
+          <button id="clear-history-btn" class="text-gray-500 hover:text-red-400"><i class="fa-solid fa-trash"></i> Borrar</button>
+        </div>
+      </div>
+      <div id="history-list" class="space-y-2 text-xs font-mono max-h-[260px] overflow-y-auto"></div>
+    </div>
+  </section>
+
+  <!-- RIGHT: AI -->
+  <section class="lg:col-span-5 flex flex-col bg-solana-card border border-solana-border rounded-2xl overflow-hidden shadow-2xl h-[750px] lg:h-auto lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]">
+    <div class="bg-gradient-to-r from-solana-card to-solana-dark p-4 border-b border-solana-border flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <div class="relative">
+          <div class="w-10 h-10 rounded-xl bg-solana-purple/20 border border-solana-purple flex items-center justify-center text-solana-purple"><i class="fa-solid fa-brain text-lg"></i></div>
+          <span class="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-solana-green border-2 border-solana-dark"></span>
+        </div>
+        <div>
+          <h3 class="font-bold text-white text-sm">Tuazar-AI Agent <span class="text-[10px] bg-solana-green/10 text-solana-green border border-solana-green/30 px-1.5 py-0.5 rounded font-mono">2.5 Flash</span></h3>
+          <p class="text-xs text-gray-400 font-mono">Powered by Google Gemini</p>
+        </div>
+      </div>
+      <button id="reset-chat-btn" class="text-gray-400 hover:text-solana-green p-2" title="Reiniciar chat"><i class="fa-solid fa-rotate-left"></i></button>
+    </div>
+
+    <div class="bg-black/30 px-4 py-2 border-b border-solana-border text-[11px] font-mono flex justify-between items-center text-gray-400">
+      <span id="api-status-badge" class="flex items-center space-x-1.5"></span>
+      <span id="x402-badge" class="text-solana-green">x402 activo</span>
+    </div>
+
+    <div id="chat-messages" class="flex-grow p-4 overflow-y-auto space-y-4 text-xs"></div>
+
+    <div class="p-4 bg-solana-dark border-t border-solana-border space-y-3">
+      <div class="flex items-center space-x-2 overflow-x-auto pb-1 text-[11px] font-mono text-gray-400">
+        <span class="text-gray-500 whitespace-nowrap">Prompts:</span>
+        <button data-prompt="Analiza el estado actual de la red DePIN TuazarData" class="quick-prompt bg-solana-card hover:bg-solana-border text-gray-300 px-2.5 py-1 rounded-md border border-solana-border whitespace-nowrap">📊 Estado red</button>
+        <button data-prompt="Explícame cómo funciona el protocolo x402 en este marketplace" class="quick-prompt bg-solana-card hover:bg-solana-border text-gray-300 px-2.5 py-1 rounded-md border border-solana-border whitespace-nowrap">⚙️ ¿Qué es x402?</button>
+        <button data-prompt="Resume mis pagos realizados hasta ahora" class="quick-prompt bg-solana-card hover:bg-solana-border text-gray-300 px-2.5 py-1 rounded-md border border-solana-border whitespace-nowrap">🧾 Mis pagos</button>
+      </div>
+      <form id="chat-form" class="flex items-center space-x-2">
+        <input id="user-input" type="text" required autocomplete="off" placeholder="Escribe una instrucción para el agente M2M..."
+          class="flex-grow bg-solana-card border border-solana-border focus:border-solana-green focus:outline-none rounded-xl px-4 py-3 text-xs text-white placeholder-gray-500 transition">
+        <button type="submit" id="send-btn" class="bg-gradient-to-r from-solana-green to-solana-purple hover:opacity-90 text-black font-bold p-3 rounded-xl flex-shrink-0 shadow-solana-glow">
+          <i class="fa-solid fa-paper-plane text-sm"></i>
+        </button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<!-- MODAL: API KEY -->
+<div id="settings-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-solana-card border border-solana-border rounded-2xl max-w-md w-full p-6 shadow-2xl">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-bold text-white flex items-center space-x-2"><i class="fa-solid fa-key text-solana-green"></i><span>Gemini API</span></h3>
+      <button id="close-modal-btn" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <p class="text-xs text-gray-300 mb-4 leading-relaxed">Sin API Key el agente funciona en modo demostración.</p>
+    <div class="space-y-3 font-mono text-xs">
+      <input type="password" id="api-key-input" placeholder="AIzaSy..." class="w-full bg-solana-dark border border-solana-border focus:border-solana-green focus:outline-none rounded-xl p-3 text-white">
+      <label class="flex items-center space-x-2 text-gray-400"><input type="checkbox" id="remember-key"><span>Recordar en este navegador (si no, solo durante esta sesión)</span></label>
+      <div class="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-[11px] text-yellow-200">
+        <i class="fa-solid fa-triangle-exclamation"></i> La clave se usa directamente desde el navegador. Para producción, usa un backend/proxy y restringe la clave por dominio en Google AI Studio.
+      </div>
+    </div>
+    <div class="mt-5 flex gap-3">
+      <button id="remove-key-btn" class="w-1/3 bg-solana-dark border border-solana-border text-gray-300 py-2.5 rounded-xl text-xs font-mono">Quitar</button>
+      <button id="save-key-btn" class="w-2/3 bg-solana-green text-black font-bold py-2.5 rounded-xl text-xs font-mono">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRM REAL PAYMENT -->
+<div id="confirm-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-solana-card border border-solana-border rounded-2xl max-w-md w-full p-6 shadow-2xl">
+    <h3 class="text-lg font-bold text-white mb-3"><i class="fa-solid fa-shield-halved text-solana-green"></i> Confirmar pago</h3>
+    <div id="confirm-body" class="text-xs font-mono text-gray-300 space-y-2 mb-5"></div>
+    <div class="flex gap-3">
+      <button id="confirm-cancel" class="w-1/2 bg-solana-dark border border-solana-border text-gray-300 py-2.5 rounded-xl text-xs font-mono">Cancelar</button>
+      <button id="confirm-ok" class="w-1/2 bg-solana-green text-black font-bold py-2.5 rounded-xl text-xs font-mono">Firmar y pagar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div id="toasts" class="fixed bottom-4 right-4 z-[60] space-y-2"></div>
+
+<footer class="border-t border-solana-border bg-solana-dark/90 py-4 px-4 lg:px-8 mt-6">
+  <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center text-xs font-mono text-gray-500 gap-2">
+    <div>© 2026 TuazarData DePIN Protocol · <span class="text-solana-green">Solana</span> & <span class="text-solana-purple">Gemini AI</span></div>
+    <a href="https://tuazardata.com" target="_blank" rel="noopener" class="hover:text-solana-green">tuazardata.com</a>
+  </div>
+</footer>
+
+<script type="module">
+  /* ============ CONFIG ============ */
+  const DEST = "9FJUD1YJeb8e9S6AAxcXhS6LDt6Kojcj5iwfCWPggqhS";
+  const RPC = { "devnet": "https://api.devnet.solana.com", "mainnet-beta": "https://api.mainnet-beta.solana.com" };
+  const RESOURCES = [
+    { id: "iot",  name: "Orbital IoT Telemetry",  price: 0.005, icon: "fa-satellite-dish", color: "green",  desc: "Lecturas de densidad atmosférica y radiación de micro-satélites en tiempo real.", cat: "IoT Telemetry Stream" },
+    { id: "gpu",  name: "Neural Compute Grid",    price: 0.012, icon: "fa-brain",          color: "purple", desc: "Cluster de GPU descentralizado para inferencia rápida de LLMs y visión por computadora.", cat: "Neural Compute GPU" },
+    { id: "defi", name: "DeFi Market Sentiment",  price: 0.008, icon: "fa-chart-line",     color: "green",  desc: "Dataset sintético de libros de órdenes y análisis de liquidez en Memecoins de Solana.", cat: "Financial Dataset" }
+  ];
+  const COLORS = { green: "#14F195", purple: "#9945FF", yellow: "#facc15", red: "#f87171", gray: "#d1d5db", dim: "#6b7280" };
+
+  /* ============ SAFE STORAGE ============ */
+  const store = {
+    get(k, s = false) { try { return (s ? sessionStorage : localStorage).getItem(k); } catch { return null; } },
+    set(k, v, s = false) { try { (s ? sessionStorage : localStorage).setItem(k, v); } catch {} },
+    del(k) { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch {} }
+  };
+
+  /* ============ STATE ============ */
+  const $ = id => document.getElementById(id);
+  const state = {
+    network: store.get("tuazar_network") || "devnet",
+    mode: store.get("tuazar_mode") || "simulation",
+    pubkey: null,
+    busy: false,
+    apiKey: store.get("TUAZAR_GEMINI_KEY") || store.get("TUAZAR_GEMINI_KEY", true) || "",
+    history: JSON.parse(store.get("tuazar_history") || "[]"),
+    chat: []
+  };
+  let ai = null;
+  let connection = null;
+  const web3 = window.solanaWeb3;
+
+  /* ============ HELPERS ============ */
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const short = (s, a = 6, b = 6) => s.length > a + b + 3 ? `${s.slice(0, a)}...${s.slice(-b)}` : s;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const explorer = sig => `https://explorer.solana.com/tx/${sig}${state.network === "mainnet-beta" ? "" : "?cluster=" + state.network}`;
+
+  function toast(msg, type = "info") {
+    const c = { info: COLORS.purple, ok: COLORS.green, err: COLORS.red }[type];
+    const el = document.createElement("div");
+    el.className = "toast bg-solana-card border rounded-xl px-4 py-3 text-xs font-mono shadow-2xl max-w-xs";
+    el.style.borderColor = c;
+    el.textContent = msg;
+    $("toasts").appendChild(el);
+    setTimeout(() => el.remove(), 4500);
+  }
+
+  function log(tag, text, color = "gray", html = false) {
+    const time = new Date().toTimeString().slice(0, 8);
+    const line = document.createElement("div");
+    line.style.color = COLORS[color] || COLORS.gray;
+    line.className = "break-all";
+    const t = document.createElement("span"); t.style.color = COLORS.dim; t.textContent = `[${time}] `;
+    const g = document.createElement("span"); g.className = "font-bold"; g.textContent = `[${tag}] `;
+    line.append(t, g);
+    if (html) { const s = document.createElement("span"); s.innerHTML = text; line.appendChild(s); }
+    else line.appendChild(document.createTextNode(text));
+    $("terminal-logs").appendChild(line);
+    $("terminal-logs").scrollTop = $("terminal-logs").scrollHeight;
+  }
+
+  function setStep(n) { // 0..5 ; n = steps completed
+    [...$("stepper").children].forEach((el, i) => {
+      const d = el.querySelector(".step-dot");
+      d.classList.remove("step-active", "step-done");
+      if (i < n) d.classList.add("step-done");
+      else if (i === n && n < 5) d.classList.add("step-active");
+    });
+    if (n >= 5) [...$("stepper").children].forEach(el => el.querySelector(".step-dot").classList.add("step-done"));
+  }
+
+  function formatMd(text) {
+    return esc(text)
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`([^`]+)`/g, '<code class="bg-black/40 px-1 py-0.5 rounded text-[#14F195] font-mono text-[11px] break-all">$1</code>')
+      .replace(/^[-*] (.*)$/gm, "• $1")
+      .replace(/\n/g, "<br>");
+  }
+
+  function addChat(text, isUser = false) {
+    const d = document.createElement("div");
+    d.className = "flex space-x-3" + (isUser ? " justify-end" : "");
+    d.innerHTML = isUser
+      ? `<div class="bg-solana-purple/20 border border-solana-purple/40 p-3 rounded-2xl rounded-tr-none max-w-[85%] text-gray-200 leading-relaxed"><p class="font-bold text-solana-purple mb-1 font-mono text-[11px] text-right">Tú</p><p>${esc(text)}</p></div>
+         <div class="w-7 h-7 rounded-lg bg-solana-purple/30 border border-solana-purple flex items-center justify-center text-solana-purple flex-shrink-0"><i class="fa-solid fa-user"></i></div>`
+      : `<div class="w-7 h-7 rounded-lg bg-solana-green/20 border border-solana-green flex items-center justify-center text-solana-green flex-shrink-0"><i class="fa-solid fa-robot"></i></div>
+         <div class="bg-solana-dark border border-solana-border p-3 rounded-2xl rounded-tl-none max-w-[85%] text-gray-200 leading-relaxed"><p class="font-bold text-solana-green mb-1 font-mono text-[11px]">Tuazar-AI</p><div>${formatMd(text)}</div></div>`;
+    $("chat-messages").appendChild(d);
+    $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
+  }
+
+  function greeting() {
+    $("chat-messages").innerHTML = "";
+    addChat("¡Hola! Soy el agente de **TuazarData**. Puedo explicarte el protocolo x402, interpretar los recursos que compres y resumir tus pagos.\n- Conecta Solflare para pagos reales.\n- Usa **Simulación** para probar sin gastar SOL.");
+    state.chat = [];
+  }
+
+  /* ============ UI RENDER ============ */
+  function renderMarketplace() {
+    $("marketplace").innerHTML = RESOURCES.map(r => {
+      const c = COLORS[r.color];
+      return `<div class="bg-solana-card border border-solana-border rounded-xl p-4 flex flex-col justify-between hover:-translate-y-0.5 transition duration-300" style="--c:${c}">
+        <div>
+          <div class="flex justify-between items-start mb-3">
+            <span class="p-2.5 rounded-lg text-lg border" style="color:${c};background:${c}1a;border-color:${c}33"><i class="fa-solid ${r.icon}"></i></span>
+            <span class="text-xs font-mono font-bold px-2 py-1 rounded" style="color:${c};background:${c}33">${r.price} SOL</span>
+          </div>
+          <h3 class="font-bold text-white">${esc(r.name)}</h3>
+          <p class="text-xs text-gray-400 mt-1 mb-4">${esc(r.desc)}</p>
+        </div>
+        <button data-res="${r.id}" class="buy-btn w-full text-xs font-mono font-bold py-2 px-3 rounded-lg border transition flex items-center justify-center space-x-2" style="color:${c};border-color:${c}55;background:#2a2045">
+          <i class="fa-solid fa-bolt"></i><span>Comprar vía x402</span>
+        </button>
+      </div>`;
+    }).join("");
+    document.querySelectorAll(".buy-btn").forEach(b => b.addEventListener("click", () => buyResource(RESOURCES.find(r => r.id === b.dataset.res))));
+  }
+
+  function renderStats() {
+    const total = state.history.filter(h => h.network === state.network && h.real).reduce((a, h) => a + h.price, 0);
+    $("stat-network").textContent = state.network;
+    $("stat-count").textContent = state.history.length;
+    $("stat-total").textContent = total.toFixed(3) + " SOL";
+  }
+
+  function renderHistory() {
+    const el = $("history-list");
+    if (!state.history.length) { el.innerHTML = '<div class="text-gray-500">Aún no hay pagos.</div>'; return; }
+    el.innerHTML = state.history.slice().reverse().map(h => `
+      <div class="bg-black/40 border border-solana-border rounded-lg p-2.5 flex flex-wrap justify-between gap-2 items-center">
+        <div>
+          <div class="text-white font-bold">${esc(h.resource)} <span class="text-[10px] ml-1 px-1.5 py-0.5 rounded ${h.real ? "bg-green-500/20 text-green-300" : "bg-gray-500/20 text-gray-300"}">${h.real ? "REAL · " + esc(h.network) : "SIMULADO"}</span></div>
+          <div class="text-gray-500">${new Date(h.ts).toLocaleString()}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-solana-green">${h.price} SOL</div>
+          ${h.real ? `<a class="text-solana-purple hover:underline" target="_blank" rel="noopener" href="${esc(h.url)}">${esc(short(h.sig, 6, 4))} <i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : `<span class="text-gray-500">${esc(short(h.sig, 6, 4))}</span>`}
+        </div>
+      </div>`).join("");
+  }
+
+  function renderMode() {
+    const real = state.mode === "real";
+    $("mode-sim").className = "px-3 py-2 transition " + (!real ? "bg-solana-purple text-white font-bold" : "text-gray-400");
+    $("mode-real").className = "px-3 py-2 transition " + (real ? "bg-solana-green text-black font-bold" : "text-gray-400");
+    $("network-select").value = state.network;
+    $("mode-hint").textContent = real ? `Pagos reales en ${state.network}` : "Simulación: no se gasta SOL";
+    $("x402-badge").textContent = real ? "x402 · on-chain" : "x402 · simulado";
+    renderStats();
+  }
+
+  function renderWallet() {
+    $("wallet-btn-label").textContent = state.pubkey ? short(state.pubkey.toString(), 4, 4) : "Conectar Solflare";
+    refreshBalance();
+  }
+
+  function renderApiBadge() {
+    $("api-status-badge").innerHTML = ai
+      ? '<span class="w-2 h-2 rounded-full bg-solana-green animate-pulse"></span><span class="text-solana-green">Gemini 2.5 Flash conectado</span>'
+      : '<span class="w-2 h-2 rounded-full bg-yellow-500"></span><span>Gemini: modo demostración</span>';
+  }
+
+  /* ============ SOLANA ============ */
+  function getConn() {
+    connection = new web3.Connection(RPC[state.network], "confirmed");
+    return connection;
+  }
+
+  function getProvider() {
+    if (window.solflare?.isSolflare) return window.solflare;
+    if (window.solana) return window.solana;
+    return null;
+  }
+
+  async function connectWallet() {
+    const p = getProvider();
+    if (!p) {
+      toast("No se detectó Solflare. Instálalo en solflare.com", "err");
+      window.open("https://solflare.com/download", "_blank");
+      return null;
+    }
+    try {
+      await p.connect();
+      state.pubkey = p.publicKey;
+      log("WALLET", `Conectada: ${p.publicKey.toString()}`, "green");
+      toast("Wallet conectada", "ok");
+      renderWallet();
+      p.on?.("disconnect", () => { state.pubkey = null; renderWallet(); });
+      return p;
+    } catch (e) {
+      toast("Conexión rechazada", "err");
+      return null;
+    }
+  }
+
+  async function refreshBalance() {
+    if (!state.pubkey) { $("stat-balance").textContent = "—"; return; }
+    try {
+      const lamports = await getConn().getBalance(new web3.PublicKey(state.pubkey.toString()));
+      $("stat-balance").textContent = (lamports / web3.LAMPORTS_PER_SOL).toFixed(4) + " SOL";
+    } catch { $("stat-balance").textContent = "error RPC"; }
+  }
+
+  function confirmPayment(res) {
+    return new Promise(resolve => {
+      $("confirm-body").innerHTML = `
+        <div>Recurso: <span class="text-white">${esc(res.name)}</span></div>
+        <div>Monto: <span class="text-solana-green">${res.price} SOL</span></div>
+        <div>Red: <span class="${state.network === "mainnet-beta" ? "text-red-400 font-bold" : "text-white"}">${esc(state.network)}${state.network === "mainnet-beta" ? " (SOL REAL)" : ""}</span></div>
+        <div class="break-all">Destino: <span class="text-white">${DEST}</span></div>`;
+      $("confirm-modal").classList.remove("hidden");
+      const done = v => { $("confirm-modal").classList.add("hidden"); $("confirm-ok").onclick = $("confirm-cancel").onclick = null; resolve(v); };
+      $("confirm-ok").onclick = () => done(true);
+      $("confirm-cancel").onclick = () => done(false);
+    });
+  }
+
+  // Verifica on-chain que la tx pagó >= lamports a DEST
+  async function verifyPayment(sig, lamports) {
+    const tx = await getConn().getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
+    if (!tx) throw new Error("Transacción no encontrada");
+    if (tx.meta?.err) throw new Error("La transacción falló on-chain");
+    const msg = tx.transaction.message;
+    const keys = (msg.staticAccountKeys || msg.accountKeys).map(k => k.toString());
+    const i = keys.indexOf(DEST);
+    if (i < 0) throw new Error("El destino no participa en la transacción");
+    const received = tx.meta.postBalances[i] - tx.meta.preBalances[i];
+    if (received < lamports) throw new Error(`Monto recibido insuficiente (${received} < ${lamports})`);
+    return received;
+  }
+
+  async function payReal(res) {
+    let p = getProvider();
+    if (!state.pubkey) p = await connectWallet();
+    if (!p || !state.pubkey) throw new Error("Wallet no conectada");
+
+    if (!(await confirmPayment(res))) throw new Error("Pago cancelado por el usuario");
+
+    const conn = getConn();
+    const from = new web3.PublicKey(state.pubkey.toString());
+    const to = new web3.PublicKey(DEST);
+    const lamports = Math.round(res.price * web3.LAMPORTS_PER_SOL);
+
+    const bal = await conn.getBalance(from);
+    if (bal < lamports + 5000) throw new Error(`Saldo insuficiente (${(bal / web3.LAMPORTS_PER_SOL).toFixed(4)} SOL)${state.network === "devnet" ? ". Pide SOL de prueba en faucet.solana.com" : ""}`);
+
+    setStep(2);
+    log("SOLANA-TX", "Construyendo transferencia y solicitando firma...", "green");
+    const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+    const tx = new web3.Transaction({ feePayer: from, recentBlockhash: blockhash })
+      .add(web3.SystemProgram.transfer({ fromPubkey: from, toPubkey: to, lamports }));
+
+    const signed = await p.signTransaction(tx);
+    const sig = await conn.sendRawTransaction(signed.serialize());
+    log("SOLANA-TX", `Enviada: ${sig}`, "purple");
+
+    await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+    log("SOLANA-CONFIRM", "Transacción confirmada [SUCCESS]", "green");
+
+    setStep(3);
+    await verifyPayment(sig, lamports);
+    log("VERIFY", `Pago verificado on-chain: ${lamports} lamports → ${short(DEST, 6, 6)}`, "green");
+    refreshBalance();
+    return sig;
+  }
+
+  async function paySimulated(res) {
+    setStep(2);
+    log("SOLANA-TX", "Simulando envío a Solana...", "green");
+    await sleep(900);
+    const sig = Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+    setStep(3);
+    log("VERIFY", "Verificación simulada [OK]", "green");
+    await sleep(500);
+    return sig;
+  }
+
+  /* ============ x402 FLOW ============ */
+  async function buyResource(res) {
+    if (state.busy) return;
+    state.busy = true;
+    document.querySelectorAll(".buy-btn").forEach(b => b.classList.add("btn-disabled"));
+    const real = state.mode === "real";
+    try {
+      setStep(0);
+      addChat(`Solicito acceso a "${res.name}" (${res.cat}).`, true);
+      log("HTTP-REQ", `GET /api/v1/depin/resource?id=${res.id}`, "green");
+      await sleep(500);
+
+      setStep(1);
+      const requirement = { x402Version: 1, scheme: "exact", network: `solana-${state.network}`, maxAmountRequired: String(Math.round(res.price * 1e9)), asset: "SOL", payTo: DEST, resource: `/api/v1/depin/resource/${res.id}` };
+      log("x402-RESPONSE", `HTTP 402 Payment Required · ${res.price} SOL`, "yellow");
+      log("x402-DETAILS", JSON.stringify(requirement), "purple");
+      await sleep(500);
+
+      const sig = real ? await payReal(res) : await paySimulated(res);
+
+      const header = btoa(JSON.stringify({ x402Version: 1, scheme: "exact", network: requirement.network, payload: { signature: sig } }));
+      log("HTTP-REQ", `GET ${requirement.resource} · X-PAYMENT: ${header.slice(0, 40)}...`, "green");
+      await sleep(300);
+      setStep(5);
+      log("HTTP-RES", `HTTP 200 OK · acceso concedido a ${res.name}`, "green");
+
+      state.history.push({ resource: res.name, price: res.price, sig, real, network: state.network, url: real ? explorer(sig) : "", ts: Date.now() });
+      store.set("tuazar_history", JSON.stringify(state.history));
+      renderHistory(); renderStats();
+      toast(real ? "Pago confirmado on-chain" : "Pago simulado completado", "ok");
+
+      await askAI(`Se completó el pago de ${res.price} SOL a ${DEST} por el recurso "${res.name}" (${res.cat}) en ${state.network} (${real ? "pago real verificado on-chain, firma " + sig : "simulación"}). Genera un reporte técnico breve con datos sintéticos coherentes del recurso y confirma la transacción. Aclara que los datos del reporte son sintéticos.`);
+    } catch (e) {
+      console.error(e);
+      setStep(0);
+      log("ERROR", e.message || String(e), "red");
+      toast(e.message || "Error en el pago", "err");
+    } finally {
+      state.busy = false;
+      document.querySelectorAll(".buy-btn").forEach(b => b.classList.remove("btn-disabled"));
+    }
+  }
+
+  /* ============ GEMINI ============ */
+  const SYSTEM = `Eres Tuazar-AI, el agente de la plataforma DePIN "TuazarData" (tuazardata.com). Te especializas en economía máquina-a-máquina (M2M), micropagos x402, cómputo distribuido e IoT sobre Solana. La billetera destino de pagos es ${DEST}. Tono técnico, futurista pero profesional y claro. Responde en español, de forma directa y concisa. Nunca presentes datos sintéticos como reales.`;
+
+  async function initGemini() {
+    ai = null;
+    if (state.apiKey.trim()) {
+      try {
+        const mod = await import("https://esm.run/@google/genai");
+        ai = new mod.GoogleGenAI({ apiKey: state.apiKey.trim() });
+      } catch (e) { console.error(e); toast("No se pudo cargar el SDK de Gemini", "err"); }
+    }
+    renderApiBadge();
+  }
+
+  async function askAI(prompt) {
+    const loader = document.createElement("div");
+    loader.className = "flex space-x-3";
+    loader.innerHTML = `<div class="w-7 h-7 rounded-lg bg-solana-green/20 border border-solana-green flex items-center justify-center text-solana-green"><i class="fa-solid fa-spinner animate-spin"></i></div><div class="bg-solana-dark border border-solana-border p-3 rounded-2xl text-gray-400 font-mono">Procesando...</div>`;
+    $("chat-messages").appendChild(loader);
+    $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
+
+    let out = "";
+    try {
+      if (ai) {
+        state.chat.push({ role: "user", parts: [{ text: prompt }] });
+        const r = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: state.chat.slice(-12),
+          config: { systemInstruction: SYSTEM, temperature: 0.7 }
+        });
+        out = r.text;
+        state.chat.push({ role: "model", parts: [{ text: out }] });
+      } else {
+        await sleep(900);
+        const last = state.history[state.history.length - 1];
+        out = `**[MODO DEMOSTRACIÓN]** Recibí: "${prompt.slice(0, 140)}${prompt.length > 140 ? "…" : ""}"\n- Pagos registrados: **${state.history.length}**${last ? `\n- Último: **${last.resource}** (${last.price} SOL, ${last.real ? "real" : "simulado"})` : ""}\n- Red: **${state.network}**\n- Destino: \`${short(DEST, 8, 8)}\`\nAñade tu Gemini API Key (ícono de llave) para respuestas del modelo real.`;
+      }
+    } catch (e) {
+      out = `⚠️ **Error del agente**: ${e.message || "falló la conexión con Gemini"}. Verifica tu API Key.`;
+      log("AI-ERROR", e.message || "Gemini failed", "red");
+    }
+    loader.remove();
+    addChat(out);
+  }
+
+  /* ============ EVENTS ============ */
+  $("network-select").addEventListener("change", e => {
+    if (e.target.value === "mainnet-beta" && state.mode === "real" &&
+        !confirm("Mainnet-Beta usa SOL real. ¿Continuar?")) { e.target.value = state.network; return; }
+    state.network = e.target.value; store.set("tuazar_network", state.network);
+    renderMode(); refreshBalance(); renderHistory();
+    log("NETWORK", `Cambiado a ${state.network}`, "purple");
+  });
+  $("mode-sim").onclick = () => { state.mode = "simulation"; store.set("tuazar_mode", "simulation"); renderMode(); };
+  $("mode-real").onclick = () => { state.mode = "real"; store.set("tuazar_mode", "real"); renderMode(); if (!state.pubkey) connectWallet(); };
+  $("wallet-btn").onclick = async () => {
+    if (state.pubkey) { try { await getProvider()?.disconnect(); } catch {} state.pubkey = null; renderWallet(); }
+    else connectWallet();
+  };
+  $("wallet-display").onclick = async () => {
+    try { await navigator.clipboard.writeText(DEST); toast("Dirección copiada", "ok"); } catch { toast("No se pudo copiar", "err"); }
+  };
+  $("clear-term-btn").onclick = () => { $("terminal-logs").innerHTML = ""; log("SYSTEM", "Terminal limpia", "dim"); };
+  $("reset-chat-btn").onclick = greeting;
+
+  $("open-settings-btn").onclick = () => { $("api-key-input").value = state.apiKey; $("settings-modal").classList.remove("hidden"); };
+  $("close-modal-btn").onclick = () => $("settings-modal").classList.add("hidden");
+  $("save-key-btn").onclick = async () => {
+    state.apiKey = $("api-key-input").value.trim();
+    store.del("TUAZAR_GEMINI_KEY");
+    if (state.apiKey) store.set("TUAZAR_GEMINI_KEY", state.apiKey, !$("remember-key").checked);
+    $("settings-modal").classList.add("hidden");
+    await initGemini();
+    toast("Configuración guardada", "ok");
+  };
+  $("remove-key-btn").onclick = async () => {
+    state.apiKey = ""; store.del("TUAZAR_GEMINI_KEY"); $("api-key-input").value = "";
+    await initGemini(); toast("API Key eliminada", "info");
+  };
+
+  $("clear-history-btn").onclick = () => {
+    if (!confirm("¿Borrar el historial local de pagos?")) return;
+    state.history = []; store.set("tuazar_history", "[]"); renderHistory(); renderStats();
+  };
+  $("export-history-btn").onclick = () => {
+    if (!state.history.length) return toast("No hay pagos para exportar", "info");
+    const rows = [["fecha", "recurso", "sol", "red", "real", "firma"], ...state.history.map(h => [new Date(h.ts).toISOString(), h.resource, h.price, h.network, h.real, h.sig])];
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "tuazardata_pagos.csv"; a.click();
+  };
+
+  document.querySelectorAll(".quick-prompt").forEach(b => b.onclick = () => {
+    const t = b.dataset.prompt; addChat(t, true); askAI(t);
+  });
+  $("chat-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const t = $("user-input").value.trim(); if (!t) return;
+    $("user-input").value = "";
+    addChat(t, true); log("USER-INPUT", t, "gray"); askAI(t);
+  });
+
+  /* ============ INIT ============ */
+  $("wallet-display").textContent = DEST;
+  $("remember-key").checked = !!store.get("TUAZAR_GEMINI_KEY");
+  renderMarketplace(); renderMode(); renderHistory(); renderWallet(); setStep(0); greeting();
+  log("SYSTEM", "TuazarData DePIN Node v2 iniciado", "dim");
+  log("M2M-ROUTER", `Destino Solana bloqueado: ${DEST}`, "purple");
+  if (!web3) log("ERROR", "No se cargó @solana/web3.js (revisa tu conexión)", "red");
+  initGemini();
+</script>
+</body>
+</html>
